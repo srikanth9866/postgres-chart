@@ -1,0 +1,88 @@
+# PostgreSQL configuration
+postgres:
+  enabled: true
+  deploymentType: "statefulset" # options: "deployment" or "statefulset"
+  image:
+    repository: postgres
+    tag: "14"
+    pullPolicy: IfNotPresent
+
+  # PostgreSQL credentials
+  auth:
+    username: postgres
+    password: postgres
+    database: postgres
+
+  # PostgreSQL configuration
+  config:
+    maxConnections: "100"
+    sharedBuffers: "128MB"
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+
+  # Deployment specific config
+  replicas: 1
+
+  # StatefulSet specific config (used only when deploymentType=statefulset)
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+  # Node selector and tolerations
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# SQL import configuration
+restore:
+  enabled: true
+  useChartFile: true
+  useHostPath: false
+  chartDumpFile: "DB.zip"
+  chartDumpChunkSize: 700000
+
+  # Database connection details for import
+  databaseConfig:
+    host: "" # Empty means local PostgreSQL service
+    port: "5432"
+    adminUser: "postgres"
+    adminPassword: "postgres123"
+
+  # SQL files to import after database initialization
+  sqlFiles:
+    schema:
+    - "aw_pg_schema.dump"
+    coreServices:
+    - { file: "attendance-manager-service.sql", database: "attendance_manager_service" }
+    - { file: "config_master.sql", database: "config_master" }
+    - { file: "config_service_error_master.sql", database: "config_master" }
+    - { file: "Endpoints-Data.sql", database: "login_manager_service" }
+    - { file: "login_error_master.sql", database: "login_manager_service" }
+    - { file: "login_manager.sql", database: "login_manager_service" }
+    - { file: "System-Integrations-API.sql", database: "config_master" }
+    - { file: "download-config-master.sql", database: "download_manager_service" }
+    - { file: "postmaster-service-config.sql", database: "postmaster_service" }
+    - { file: "roster-manager-service-config.sql", database: "rostering_service" }
+    - { file: "transformation_metainf_config.sql", database: "config_master" }
+    - { file: "api_gateway.sql", database: "api_gateway_service" }
+
+  # Job configuration
+  job:
+    backoffLimit: 3
+    ttlSecondsAfterFinished: 300
+    restartPolicy: Never

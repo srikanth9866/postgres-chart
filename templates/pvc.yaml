@@ -1,0 +1,19 @@
+{{- if and (eq .Values.postgres.deploymentType "statefulset") .Values.postgres.persistence.enabled }}
+{{- if not .Values.postgres.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "postgres.fullname" . }}-data
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - {{ .Values.postgres.persistence.accessMode }}
+  {{- if .Values.postgres.persistence.storageClass }}
+  storageClassName: {{ .Values.postgres.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistence.size }}
+{{- end }}
+{{- end }}

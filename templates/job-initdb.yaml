@@ -1,0 +1,48 @@
+{{- if .Values.restore.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "postgres.initJobName" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: {{ .Values.restore.job.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.restore.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgres.labels" . | nindent 8 }}
+        app.kubernetes.io/component: db-init
+    spec:
+      restartPolicy: {{ .Values.restore.job.restartPolicy }}
+      containers:
+      - name: init-database
+        image: postgres:{{ .Values.postgres.image.tag }}
+        command:
+        - /bin/bash
+        - /scripts/init-databases.sh
+        env:
+        - name: PGPASSWORD
+          value: {{ .Values.restore.databaseConfig.adminPassword | default .Values.postgres.auth.password }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: dump-data
+          mountPath: /dump
+      volumes:
+      - name: scripts
+        configMap:
+          name: {{ include "postgres.fullname" . }}-init-scripts
+          defaultMode: 0755
+      - name: dump-data
+        persistentVolumeClaim:
+          claimName: {{ include "postgres.fullname" . }}-dump-pvc
+      {{- if eq .Values.postgres.deploymentType "deployment" }}
+      - name: dump-data
+        emptyDir: {}
+      {{- end }}
+{{- end }}
