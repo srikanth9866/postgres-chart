@@ -1,39 +1,46 @@
-{{- $postgres := .Values }}
-{{- if and $postgres.restore.enabled $postgres.restore.useChartFile (not $postgres.restore.useHostPath) }}
-{{- $namespace := default .Release.Namespace .Values.namespace }}
+{{- if and .Values.restore.enabled .Values.restore.useChartFile }}
+{{- $namespace := default .Release.Namespace }}
 {{- $name := include "postgres.fullname" . }}
-{{- $chartDumpFile := default "DB.zip" $postgres.restore.chartDumpFile }}
-{{- $chartDumpChunkSize := int (default 700000 $postgres.restore.chartDumpChunkSize) }}
+{{- $chartDumpFile := default "DB.zip" .Values.restore.chartDumpFile }}
+{{- $chartDumpChunkSize := int (default 700000 .Values.restore.chartDumpChunkSize) }}
 {{- $chartDumpFiles := list }}
-{{- if kindIs "slice" $postgres.restore.chartDumpFiles }}
-  {{- range $f := $postgres.restore.chartDumpFiles }}
-    {{- $chartDumpFiles = append $chartDumpFiles (tpl (printf "%v" $f) $) }}
+
+{{- if .Values.restore.chartDumpFiles }}
+  {{- $chartDumpFiles = .Values.restore.chartDumpFiles }}
+{{- else }}
+  {{- range $path, $_ := .Files.Glob "files/DB.zip" }}
+    {{- $chartDumpFiles = append $chartDumpFiles $path }}
   {{- end }}
-{{- else if $postgres.restore.chartDumpFiles }}
-  {{- fail "postgres.restore.chartDumpFiles must be a YAML list" }}
+  {{- range $path, $_ := .Files.Glob "files/database-dumps/*.zip" }}
+    {{- $chartDumpFiles = append $chartDumpFiles $path }}
+  {{- end }}
+  {{- range $path, $_ := .Files.Glob "files/backups/*.zip" }}
+    {{- $chartDumpFiles = append $chartDumpFiles $path }}
+  {{- end }}
 {{- end }}
+
 {{- if eq (len $chartDumpFiles) 0 }}
-  {{- range $path, $_ := .Files.Glob "DB/*.zip" }}
-    {{- $chartDumpFiles = append $chartDumpFiles $path }}
-  {{- end }}
-  {{- range $path, $_ := .Files.Glob "database-dumps/*.zip" }}
-    {{- $chartDumpFiles = append $chartDumpFiles $path }}
-  {{- end }}
-  {{- range $path, $_ := .Files.Glob "backups/*.zip" }}
-    {{- $chartDumpFiles = append $chartDumpFiles $path }}
-  {{- end }}
+  {{- $chartDumpFiles = list (printf "files/%s" $chartDumpFile) }}
 {{- end }}
-{{- if eq (len $chartDumpFiles) 0 }}
-  {{- $chartDumpFiles = list $chartDumpFile }}
-{{- end }}
+
 {{- range $fileIdx, $zipPath := $chartDumpFiles }}
-{{- $zipPathStr := $zipPath | toString }}
-{{- $encoded := ($.Files.Get $zipPathStr | b64enc) -}}
-{{- if eq (len $encoded) 0 }}
-{{- fail (printf "postgres.restore dump zip not found or empty: %s" $zipPathStr) }}
+{{- if $.Files.Glob $zipPath }}
+{{- $zipContent := $.Files.Get $zipPath }}
+{{- $encoded := $zipContent | b64enc }}
+{{- $chunks := splitList "" $encoded }}
+{{- $chunkSize := $chartDumpChunkSize }}
+{{- $totalChunks := div (len $chunks) $chunkSize }}
+{{- if gt (mod (len $chunks) $chunkSize) 0 }}
+  {{- $totalChunks = add $totalChunks 1 }}
 {{- end }}
-{{- $chunks := chunk $chartDumpChunkSize (splitList "" $encoded) -}}
-{{- range $chunkIdx, $chunk := $chunks }}
+
+{{- $chunkStart := 0 }}
+{{- range $chunkIdx := until $totalChunks }}
+{{- $chunkEnd := add $chunkStart $chunkSize }}
+{{- if gt $chunkEnd (len $chunks) }}
+  {{- $chunkEnd = len $chunks }}
+{{- end }}
+{{- $chunk := slice $chunks $chunkStart $chunkEnd | join "" }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -45,10 +52,13 @@ metadata:
     app.kubernetes.io/component: database-restore
     app.kubernetes.io/instance: {{ $.Release.Name }}
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: {{ $.Chart.Name }}
 data:
-  file-name: {{ base $zipPathStr | quote }}
-  chunk.b64: {{ join "" $chunk | quote }}
+  chunk.b64: {{ $chunk | quote }}
+  file-name: {{ base $zipPath | quote }}
+{{- $chunkStart = $chunkEnd }}
+{{- end }}
+{{- else }}
+{{- fail (printf "Dump zip file not found: %s" $zipPath) }}
 {{- end }}
 {{- end }}
 {{- end }}

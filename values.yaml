@@ -1,3 +1,7 @@
+# Add these at the top of values.yaml
+nameOverride: ""
+fullnameOverride: ""
+
 # PostgreSQL configuration
 postgres:
   enabled: true
@@ -41,7 +45,7 @@ postgres:
     enabled: true
     storageClass: ""
     accessMode: ReadWriteOnce
-    size: 10Gi
+    size: 4Gi
 
   # Node selector and tolerations
   nodeSelector: {}
@@ -55,13 +59,14 @@ restore:
   useHostPath: false
   chartDumpFile: "DB.zip"
   chartDumpChunkSize: 700000
+  chartDumpFiles: []
 
   # Database connection details for import
   databaseConfig:
     host: "" # Empty means local PostgreSQL service
     port: "5432"
     adminUser: "postgres"
-    adminPassword: "postgres123"
+    adminPassword: "postgres"
 
   # SQL files to import after database initialization
   sqlFiles:

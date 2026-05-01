@@ -29,7 +29,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "postgres.serviceName" -}}
-{{ include "postgres.fullname" . }}-svc
+{{ include "postgres.fullname" . }}
 {{- end }}
 
 {{- define "postgres.initJobName" -}}

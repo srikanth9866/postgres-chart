@@ -38,37 +38,18 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
+        {{- if .Values.restore.enabled }}
+        - name: dump-data
+          mountPath: /dump
+        {{- end }}
       volumes:
       - name: data
         emptyDir: {}
       {{- if .Values.restore.enabled }}
-      initContainers:
-      - name: extract-dump
-        image: busybox
-        command:
-        - sh
-        - -c
-        - |
-          mkdir -p /dump
-          if ls /dump-config/*.b64 2>/dev/null; then
-            for chunk in /dump-config/*.b64; do
-              cat $chunk >> /dump/dump.b64
-            done
-            base64 -d /dump/dump.b64 > /dump/DB.zip
-            cd /dump
-            unzip -o DB.zip
-            rm -f DB.zip dump.b64
-          fi
-        volumeMounts:
-        - name: dump-config
-          mountPath: /dump-config
-        - name: dump-data
-          mountPath: /dump
-      volumes:
-      - name: dump-config
-        configMap:
-          name: {{ include "postgres.fullname" . }}-dump-chunks
       - name: dump-data
         emptyDir: {}
+      - name: dump-config
+        configMap:
+          name: {{ include "postgres.fullname" . }}-restore-dump
       {{- end }}
 {{- end }}
