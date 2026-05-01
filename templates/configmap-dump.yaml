@@ -24,23 +24,23 @@
 {{- end }}
 
 {{- range $fileIdx, $zipPath := $chartDumpFiles }}
-{{- if $.Files.Glob $zipPath }}
 {{- $zipContent := $.Files.Get $zipPath }}
+{{- if $zipContent }}
 {{- $encoded := $zipContent | b64enc }}
-{{- $chunks := splitList "" $encoded }}
+{{- $encodedList := splitList "" $encoded }}
 {{- $chunkSize := $chartDumpChunkSize }}
-{{- $totalChunks := div (len $chunks) $chunkSize }}
-{{- if gt (mod (len $chunks) $chunkSize) 0 }}
-  {{- $totalChunks = add $totalChunks 1 }}
+{{- $totalLen := len $encodedList }}
+{{- $totalChunks := div $totalLen $chunkSize }}
+{{- if gt (mod $totalLen $chunkSize) 0 }}
+  {{- $totalChunks = add1 $totalChunks }}
 {{- end }}
-
-{{- $chunkStart := 0 }}
+{{- $start := 0 }}
 {{- range $chunkIdx := until $totalChunks }}
-{{- $chunkEnd := add $chunkStart $chunkSize }}
-{{- if gt $chunkEnd (len $chunks) }}
-  {{- $chunkEnd = len $chunks }}
+{{- $end := add $start $chunkSize }}
+{{- if gt $end $totalLen }}
+  {{- $end = $totalLen }}
 {{- end }}
-{{- $chunk := slice $chunks $chunkStart $chunkEnd | join "" }}
+{{- $chunk := slice $encodedList $start $end | join "" }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -55,7 +55,7 @@ metadata:
 data:
   chunk.b64: {{ $chunk | quote }}
   file-name: {{ base $zipPath | quote }}
-{{- $chunkStart = $chunkEnd }}
+{{- $start = $end }}
 {{- end }}
 {{- else }}
 {{- fail (printf "Dump zip file not found: %s" $zipPath) }}
